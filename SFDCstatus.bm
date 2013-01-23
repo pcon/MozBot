@@ -1,0 +1,182 @@
+#!/usr/bin/perl
+
+# A module written to get trust and API version info from SFDC
+# Patrick Connelly (patrick@deadlypenguin.com)
+
+package BotModules::SFDCstatus;
+use XML::Simple;
+use LWP::Simple;
+use JSON;
+use vars qw(@ISA);
+@ISA = qw(BotModules);
+1;
+
+my %hosts;
+my %verhosts;
+
+for (0 .. 17) {
+	$hosts{'cs'.$_} = 'http://trust.salesforce.com/rest/rss/cs'.$_;
+	$verhosts{'cs'.$_} = 'http://cs'.$_.'.salesforce.com/services/data';
+}
+
+for (0 .. 14)  {
+	$hosts{'na'.$_} = 'http://trust.salesforce.com/rest/rss/na'.$_;
+	$verhosts{'na'.$_} = 'http://na'.$_.'.salesforce.com/services/data';
+}
+
+for (0 .. 1) {
+	$hosts{'ap'.$_} = 'http://trust.salesforce.com/rest/rss/ap'.$_;
+	$verhosts{'ap'.$_} = 'http://ap'.$_.'.salesforce.com/services/data';
+}
+
+for (0 .. 2) {
+	$hosts{'eu'.$_} = 'http://trust.salesforce.com/rest/rss/eu'.$_;
+	$verhosts{'eu'.$_} = 'http://eu'.$_.'.salesforce.com/services/data';
+}
+
+sub Help {
+	my $self = shift;
+	my ($event) = @_;
+	return {
+		'' => 'This checks the status of a salesforce instance',
+		'status' => 'Gets the status of all systems sent in a PM',
+		'status <host>' => 'Gets the status of specific host',
+		'morestatus <host>' => 'Gets more status of specific host sent in a PM',
+		'version <host>' => 'Gets the version running on the host',
+		'moreversion <host>' => 'Gets all versions running on the host sent in a PM',
+	}
+}
+
+sub FullVersion {
+	my $self = shift;
+	my ($event, $h) = @_;
+
+	if (defined($verhosts{$h})) {
+		my $content = get($verhosts{$h});
+		my $json = new JSON;
+		my $json_text = $json->decode($content);
+
+		my $result = '';
+
+		for (@{$json_text}) {
+			my $type = $_;
+			my $version_number = $type->{version};
+			my $version_name = $type->{label};
+
+			$result = $result.$version_name.' ('.$version_number.")\n";
+		}
+
+		$result =~ s/\s+$//;
+
+		return $result;
+	}
+
+	return 'Unknown host '.$h;
+}
+
+sub IndividualVersion {
+	my $self = shift;
+	my ($event, $h) = @_;
+
+	if (defined($verhosts{$h})) {
+		my $content = get($verhosts{$h});
+		my $json = new JSON;
+		my $json_text = $json->decode($content);
+
+		my $version_current = '0.0';
+		my $version_name;
+
+		for (@{$json_text}) {
+			my $type = $_;
+
+			if ($type->{version} gt $version_current) {
+				$version_current = $type->{version};
+				$version_name = $type->{label};
+			}
+		}
+
+		return $version_name.' ('.$version_current.')';
+	}
+
+	return 'Unknown host '.$h;
+}
+
+sub IndividualStatus {
+	my $self = shift;
+	my ($event, $h, $morestatus) = @_;
+
+	if (defined($hosts{$h})) {
+		my $xml = get($hosts{$h});
+		my $rp = new XML::Simple;
+		my $data = $rp->XMLin($xml);
+
+		my $item = $data->{'channel'}->{'item'}[0];
+		my $title = $item->{'title'};
+		my $desc = $item->{'description'};
+		my $date = $item->{'pubDate'};
+
+		if ($morestatus eq 1) {
+			return "$title\n$desc\nPublished: $date";
+		}
+
+		return "$title ~ Published: $date";
+	}
+
+	return 'Unknown host '.$h;
+}
+
+sub Told {
+	my $self = shift;
+	my ($event, $message) = @_;
+	if ($message =~ /^status$/osi || $message =~ /^morestatus$/osi) {
+		$self->say($event, "$event->{'from'}: More info sent in a pm");
+		$event->{channel} = $event->{'from'};
+		$event->{target} = $event->{'from'};
+
+		my $verbose = ($message =~ /^morestatus$/osi) ? 1 : 0;
+
+		foreach(keys %hosts) {
+			my $status = $self->IndividualStatus($event, $_, $verbose);
+			$self->say($event, $status);
+		}
+
+		return 0;
+	} elsif ($message =~ /^privatestatus [0-9a-zA-Z]+$/osi) {
+		my ($cmd, $h) = split(' ', $message, 2);
+		my $status = $self->IndividualStatus($event, $h, 0);
+		$event->{channel} = $event->{'from'};
+		$event->{target} = $event->{'from'};
+		$self->say($event, $status);
+		return 0;
+	} elsif ($message =~ /^status [0-9a-zA-Z]+$/osi) {
+		my ($cmd, $h) = split(' ', $message, 2);
+		my $status = $self->IndividualStatus($event, $h, 0);
+		$self->say($event, "$event->{'from'}: $status");
+		return 0;
+	} elsif ($message =~ /^morestatus [0-9a-zA-Z]+$/osi) {
+		my ($cmd, $h) = split(' ', $message, 2);
+		$self->say($event, "$event->{'from'}: More info sent in a pm");
+
+		my $status = $self->IndividualStatus($event, $h, 1);
+		$event->{channel} = $event->{'from'};
+		$event->{target} = $event->{'from'};
+		$self->say($event, $status);
+		return 0;
+	} elsif ($message =~ /^version [0-9a-zA-Z]+$/osi) {
+		my ($cmd, $h) = split(' ', $message, 2);
+		my $version = $self->IndividualVersion($event, $h);
+		$self->say($event, "$event->{'from'}: $version");
+		return 0;
+	} elsif ($message =~ /^moreversion [0-9a-zA-Z]+$/osi) {
+		my ($cmd, $h) = split(' ', $message, 2);
+		$self->say($event, "$event->{'from'}: More info sent in a pm");
+
+		my $version = $self->FullVersion($event, $h);
+		$event->{channel} = $event->{'from'};
+		$event->{target} = $event->{'from'};
+		$self->say($event, $version);
+		return 0;
+	} else {
+		return $self->SUPER::Told(@_);
+	}
+}

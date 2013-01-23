@@ -1,0 +1,96 @@
+#!/usr/bin/perl
+
+# A module to get the title of a YouTube video if told or overheard in the channell
+# Patrick Connelly (patrick@deadlypenguin.com)
+
+package BotModules::YouTube;
+use XML::Simple;
+use LWP::Simple;
+use URI qw();
+use URI::QueryParam qw();
+use JSON;
+use vars qw(@ISA);
+@ISA = qw(BotModules);
+1;
+
+sub printTitle {
+	my $self = shift;
+	my ($event, $vid_id) = @_;
+
+	my $url = 'http://gdata.youtube.com/feeds/api/videos?v=2&q='.$vid_id.'&max-results=1&fields=entry(title)&prettyprint=true';
+
+	my $xml = get($url);
+	my $rp = new XML::Simple;
+	my $data = $rp->XMLin($xml);
+	my $title = $data->{'entry'}->{'title'};
+
+	return $title;
+}
+
+sub HeardVid {
+	my $self = shift;
+	my ($event, $url) = @_;
+
+	my $link = URI->new($url);
+	my $vid_id = $link->query_param('v');
+	my $title = $self->printTitle($event, $vid_id);
+
+	if ($title ne '') {
+		$self->say($event, "[Title] - $title");
+	}
+}
+
+sub ToldVid {
+	my $self = shift;
+	my ($event, $url) = @_;
+
+	my $link = URI->new($url);
+	my $vid_id = $link->query_param('v');
+	my $title = $self->printTitle($event, $vid_id);
+
+	if ($title ne '') {
+		$self->say($event, "$event->{'from'}: [Title] - $title");
+	}
+}
+
+sub Heard {
+     my $self = shift;
+     my ($event, $message) = @_;
+     if (my ($url) = $message =~ m/.*(http:\/\/www\.youtube\.com\/[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
+		$self->HeardVid($event, $url);
+     } elsif (my ($url) = $message =~ m/.*(https:\/\/www\.youtube\.com\/[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
+		$self->HeardVid($event, $url);
+     } elsif (my ($url) = $message =~ m/.*(http:\/\/youtu\.be\/[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
+		my $link = URI->new($url);
+
+		my $uri = $link->path;
+		$uri =~ s/^\//http:\/\/www.youtube.com\/?v=/;
+
+		$self->HeardVid($event, $uri);
+	} else {
+		return $self->SUPER::Heard(@_);
+	}
+
+	return 0;
+}
+
+sub Told {
+     my $self = shift;
+     my ($event, $message) = @_;
+     if (my ($url) = $message =~ m/.*(http:\/\/www\.youtube\.com\/[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
+		$self->ToldVid($event, $url);
+     } elsif (my ($url) = $message =~ m/.*(https:\/\/www\.youtube\.com\/[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
+		$self->ToldVid($event, $url);
+     } elsif (my ($url) = $message =~ m/.*(http:\/\/youtu\.be\/[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
+		my $link = URI->new($url);
+
+		my $uri = $link->path;
+		$uri =~ s/^\//http:\/\/www.youtube.com\/?v=/;
+		
+		$self->ToldVid($event, $uri);
+	} else {
+		return $self->SUPER::Told(@_);
+	}
+
+	return 0;
+}
