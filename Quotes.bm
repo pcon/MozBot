@@ -1,0 +1,388 @@
+#!/usr/bin/perl
+
+use DBI();
+
+package BotModules::Quotes;
+use vars qw(@ISA);
+@ISA = qw(BotModules);
+1;
+
+my @mirc_color_arr = ("\0031","\0035","\0033","\0037","\0032","\0036",
+									"\00310","\0030","\00314","\0034","\0039","\0038",
+									"\00312","\00313","\00311","\00315","\017");
+
+my @quotedBlacklist = ();
+my @addquoteBlacklist = ();
+
+sub Help {
+	my $self = shift;
+	my ($event) = @_;
+	return {
+		'' => 'The quote module.  See help for quote, addquote, delquote, nickquote, findquote, numquote quotestats',
+		'quote' => 'Randomly recalls a quote.',	
+		'newquote' => 'Picks the newest quote for a channel or user.  newquote [<nick>]',
+		'addquote' => 'Adds a quote from a particular nick.  addquote <nick> <quote>',
+		'delquote' => 'Removes a specific quote.  delquote <qid>',
+		'nickquote' => 'Randomly recalls a quote from a particular nick.  nickquote <nick>',
+		'findquote' => 'Randomly recalls a quote that matches the string.  findquote <string>',	
+		'numquote' => 'Rcalls a quote specific quote number.  numquote <qid>',
+		'quotestats' => 'Gives the number of quotes for a particular nick or current channel.  quotestats [<nick>]',
+		'morequotestats' => 'Gives advanced quote stats for a particular nick or current channel.  morequotestats [<nick>]'
+	};
+}
+
+sub dbConnect {
+	my $dbUser = "USERNAME";
+	my $dbPass = "PASSWORD";
+	my $dbh = DBI->connect("DBI:mysql:database=quotes;host=localhost",
+		$dbUser, $dbPass,
+		{'RaiseError' => 1});
+	return $dbh;
+}
+
+sub sayQuote {
+	my $self = shift;
+	my ($event, $quote, $nick, $qtime, $qid) = @_;
+
+	$self->say($event, "$mirc_color_arr[11]\"$quote\"$mirc_color_arr[12] -- $mirc_color_arr[14]$nick, $mirc_color_arr[8]$qtime [$qid]\n");
+}
+
+sub getRandQuote {
+	my $self = shift;
+	my ($event) = @_;
+
+	my $dbh=dbConnect();
+	my $sth=$dbh->prepare("select quote, quoted, qtime, qid from quotes where channel=\"$event->{'channel'}\" order by rand() limit 1");
+	$sth->execute();
+
+	my ($hashref) = $sth->fetchrow_hashref();
+
+	if ($hashref == 0) {
+			$self->say($event, "No quotes found for nick $nick\n");
+	} else {
+			$self->sayQuote($event, $hashref->{'quote'}, $hashref->{'quoted'}, $hashref->{'qtime'}, $hashref->{'qid'});
+	}
+}
+
+sub getNickQuote {
+	my $self = shift;
+	my ($event, $inputnick) = @_;
+
+	my $nick = $inputnick;
+	my $module = $self->getModule('Samenick');
+
+	if (defined($module->{'alias'}->{$inputnick})) {
+		$nick = $module->{'alias'}->{$inputnick};
+	}
+
+	my $dbh=dbConnect();
+	my $sth=$dbh->prepare("select quote, quoted, qtime, qid from quotes where channel=\"$event->{'channel'}\" and quoted=\"$nick\" order by rand() limit 1");
+	$sth->execute();
+
+	my ($hashref) = $sth->fetchrow_hashref();
+
+	if ($hashref == 0) {
+		$self->say($event, "No quotes found for nick $nick\n");
+	} else {
+		$self->sayQuote($event, $hashref->{'quote'}, $hashref->{'quoted'}, $hashref->{'qtime'}, $hashref->{'qid'});
+	}
+}
+
+sub addQuote {
+	my $self = shift;
+	my ($event, $inputnick, $quote) = @_;
+
+	if ($event->{'channel'} eq "") {
+		$self->say($event, "I can't add a quote because the request is not in a channel");
+		return -1;
+	}
+
+	my $quoter = $event->{'from'};
+
+	$quoter =~ m/^(\w+)|.*$/i;
+	$quoter = $1;
+
+	for (my $i=0; $i<scalar(@addquoteBlacklist); $i++) {
+		if (($quoter =~ m/$addquoteBlacklist[$i]/) || ($event->{'user'} =~ m/$addquoteBlacklist[$i]/)) {
+			$self->say($event, "$event->{'from'}: Sorry you've been blacklisted");
+			return -1;
+		}
+	}
+
+	my $nick = $inputnick;
+	my $module = $self->getModule('Samenick');
+
+	if (defined($module->{'alias'}->{$inputnick})) {
+		$nick = $module->{'alias'}->{$inputnick};
+	}
+
+	for (my $i=0; $i<scalar(@quotedBlacklist); $i++) {
+		if ($nick =~ m/$quotedBlacklist[$i]/) {
+			return -1;
+		}
+	}
+
+	my $dbh=dbConnect();
+	my $sth=$dbh->prepare("insert into quotes (qtime, channel, quote, quoter, quoted) values (now(), \"$event->{'channel'}\", \"$quote\", \"$quoter\", \"$nick\")");
+	$sth->execute();
+	my $sth=$dbh->prepare("select qid from quotes where channel = \"$event->{'channel'}\" and quote = \"$quote\" and quoter = \"$quoter\" and quoted = \"$nick\"");
+	$sth->execute();
+	my ($hashref) = $sth->fetchrow_hashref();
+	if ($hashref == 0) {
+		$self->say($event, "$event->{'from'}: I'm sorry.  An error has occured adding quote.\n");
+	} else {
+		$self->say($event, "$event->{'from'}: I've added the quote with the ID #$hashref->{'qid'}\n");
+	}
+}
+
+sub delQuote {
+	my $self = shift;
+	my ($event, $number) = @_;
+
+	if ($self->isAdmin($event)) {
+		my $dbh=dbConnect();
+		if ($dbh->do("delete from quotes where channel=\"$event->{'channel'}\" and qid=\"$number\"")) {
+			$self->say($event, "$event->{'from'}: Quote #$number deleted.\n");
+		} else {
+			$self->say($event, "$event->{'from'}: The delete failed.  I'm sorry.\n");
+		}
+	} else {
+		$self->say($event, "$event->{'from'}: Sorry, you don't have the permissions.  Ask my owner too.  and have a good reason.\n");
+	}
+}
+
+sub findQuote {
+	my $self = shift;
+	my ($event, $search) = @_;
+
+	my $dbh=dbConnect();
+	my $sth=$dbh->prepare("select qid, quote, quoted, qtime from quotes where channel=\"$event->{'channel'}\" and upper(convert(quote using utf8)) like upper(\"\%$search\%\")");
+	$sth->execute();
+
+	my ($hashref) = $sth->fetchrow_hashref();
+	if ($hashref == 0) {
+		$self->directSay($event, "No quotes found.  Sorry.\n");
+	} else {
+		do {
+			if ($hashref->{'quote'} eq "") {
+			} else {
+				$self->directSay($event, "[$hashref->{'qid'}] \"$hashref->{'quote'}\" -- $hashref->{'quoted'} $hashref->{'qtime'}\n");
+			}
+		} while (($hashref) = $sth->fetchrow_hashref());
+	}
+}
+
+sub numQuote {
+	my $self = shift;
+	my ($event, $number) = @_;
+
+	my $dbh=dbConnect();
+
+	my $sth=$dbh->prepare("select quote, quoted, qtime, qid from quotes where channel = \"$event->{'channel'}\" and qid = \"$number\"");
+	$sth->execute();
+	my ($hashref) = $sth->fetchrow_hashref();
+	if ($hashref == 0) {
+		$self->say($event, "$event->{'from'}: Sorry.  I can't find that quote.\n");
+	} else {
+		$self->sayQuote($event, $hashref->{'quote'}, $hashref->{'quoted'}, $hashref->{'qtime'}, $hashref->{'qid'});
+	}
+}
+
+sub moreQuoteStats {
+	my $self = shift;
+	my ($event, $inputnick) = @_;
+
+	my $nick = $inputnick;
+	my $module = $self->getModule('Samenick');
+
+	if (defined($module->{'alias'}->{$inputnick})) {
+		$nick = $module->{'alias'}->{$inputnick};
+	}
+
+	my $numquotes;
+	my $numquoter;
+
+	my $topquoter;
+	my $topquoted;
+
+	my $dbh=dbConnect();
+
+	my $sth;
+	if ($nick eq "") {
+		$sth=$dbh->prepare("select count(qid) as number, quoted as nick from quotes where channel = \"$event->{'channel'}\" group by quoted order by number desc limit 1");
+		$sth->execute();
+
+		my ($hashref) = $sth->fetchrow_hashref();
+		if ($hashref == 0) {
+			$numquotes=0;
+		} else {
+			$numquotes=$hashref->{'number'};
+			$topquoted=$hashref->{'nick'};
+		}
+
+		$sth=$dbh->prepare("select count(qid) as number, quoter as nick from quotes where channel = \"$event->{'channel'}\" group by quoter order by number desc limit 1");
+		$sth->execute();
+
+		my ($hashref) = $sth->fetchrow_hashref();
+		if ($hashref == 0) {
+				$numquoter=0;
+		} else {
+			$numquoter=$hashref->{'number'};
+			$topquoter=$hashref->{'nick'};
+		}
+
+		if ($numquotes == 0) {
+			$self->say($event, "I have no quotes for this channel.\n");
+		} else {			
+			$self->say($event, "The person with the most quotes is $topquoted with $numquotes quotes and $topquoter has stored $numquoter in my database\n");
+		}
+	} else {
+		$sth=$dbh->prepare("select count(qid) as number from quotes where channel = \"$event->{'channel'}\" and quoted = \"$nick\"");
+		$sth->execute();
+
+		my ($hashref) = $sth->fetchrow_hashref();
+		if ($hashref == 0) {
+			$numquotes=0;
+		} else {
+			$numquotes=$hashref->{'number'};
+		}
+
+		$sth=$dbh->prepare("select count(qid) as number from quotes where channel = \"$event->{'channel'}\" and quoter = \"$nick\"");
+		$sth->execute();
+
+		my ($hashref) = $sth->fetchrow_hashref();
+	if ($hashref == 0) {
+				$numquoter=0;
+	} else {
+			$numquoter=$hashref->{'number'};
+		}
+		if ($numquotes == 0 && $numquoter == 0) {
+	                $self->say($event, "$event->{'from'}: Sorry.  I don't have anything for that nick.\n");
+		} elsif ($numquotes == 0) {
+			$self->say($event, "$nick has no quotes for this channel, and has quoted $numquoter people\n");
+		} elsif ($numquoter == 0) {
+			$self->say($event, "$nick has $numquotes quotes for this channel, and has quoted no people\n");
+		} else {
+			$self->say($event, "$nick has $numquotes quotes for this channel, and has quoted $numquoter people\n");
+		}
+	}
+}
+
+sub newQuote {
+	my $self = shift;
+	my ($event, $inputnick) = @_;
+
+	my $nick = $inputnick;
+	my $module = $self->getModule('Samenick');
+
+	if (defined($module->{'alias'}->{$inputnick})) {
+		$nick = $module->{'alias'}->{$inputnick};
+	}
+
+	my $dbh=dbConnect();
+
+	my $sth;
+	if ($nick eq "") {
+		$sth=$dbh->prepare("select quote, quoted, qtime, qid from quotes where channel=\"$event->{'channel'}\" order by qid desc limit 1");
+	} else {
+		$sth=$dbh->prepare("select quote, quoted, qtime, qid from quotes where channel=\"$event->{'channel'}\" and quoted=\"$nick\" order by qid desc limit 1");
+	}
+	$sth->execute();
+
+	my ($hashref) = $sth->fetchrow_hashref();
+
+	if ($hashref == 0) {
+		$self->say($event, "No quotes found for nick $nick\n");
+	} else {
+		$self->sayQuote($event, $hashref->{'quote'}, $hashref->{'quoted'}, $hashref->{'qtime'}, $hashref->{'qid'});
+	}
+}
+
+sub quoteStats {
+	my $self = shift;
+	my ($event, $inputnick) = @_;
+
+	my $nick = $inputnick;
+	my $module = $self->getModule('Samenick');
+
+	if (defined($module->{'alias'}->{$inputnick})) {
+		$nick = $module->{'alias'}->{$inputnick};
+	}
+
+	my $dbh=dbConnect();
+
+	my $sth;
+	if ($nick eq "") {
+		$sth=$dbh->prepare("select count(qid) as number from quotes where channel = \"$event->{'channel'}\"");
+	} else {
+		$sth=$dbh->prepare("select count(qid) as number from quotes where channel = \"$event->{'channel'}\" and quoted = \"$nick\"");
+	}
+	$sth->execute();
+	my ($hashref) = $sth->fetchrow_hashref();
+	if ($hashref == 0) {
+		$self->say($event, "$event->{'from'}: Sorry.  That nick doesn't have any quotes.\n");
+	} else {
+		if ($nick eq "") {
+			$self->say($event, "I have $hashref->{'number'} quotes for this channel.\n");
+		} else {
+			$self->say($event, "$nick has $hashref->{'number'} quotes for this channel.\n");
+		}
+	}
+}
+
+
+sub Told {
+	my $self = shift;
+	my ($event, $message) = @_;
+
+	if (my ($_trigger) = $message =~ m/^\s*(quote)\s*$/osi) {
+		$self->getRandQuote($event);
+	} elsif (my ($_trigger, $_nick) = $message =~ m/^\s*(quotestats)\s*(\S*)\s*$/osi) {
+			$_nick =~ s/\"/\\\"/g;
+			$_nick =~ s/;/\\;/g;
+			$self->quoteStats($event, $_nick);
+	} elsif (my ($_trigger, $_nick) = $message =~ m/^\s*(newquote)\s*(\S*)\s*$/osi) {
+			$_nick =~ s/\"/\\\"/g;
+			$_nick =~ s/;/\\;/g;
+			$self->newQuote($event, $_nick);
+	} elsif (my ($_trigger, $_nick) = $message =~ m/^\s*(quote)\s*(\S*)\s*$/osi) {
+		# TODO: sanitize input
+		$_nick =~ s/\"/\\\"/g;
+		$_nick =~ s/;/\\;/g;
+		$self->getNickQuote($event, $_nick);
+	} elsif (my ($_trigger, $_nick, $_quote) = $message =~ m/^\s*(addquote)\s*(\S*)\s(.*)$/osi) {
+		# TODO: sanitize input
+		$_quote =~ s/\"/\\\"/g;
+		$_quote =~ s/;/\\;/g;
+		$_nick =~ s/\*/\\\*/g;
+		$_nick =~ s/\"/\\\"/g;
+		$_nick =~ s/;/\\;/g;
+		$_nick =~ s/://g;
+		$_nick =~ s/,//g;
+		$_nick =~ m/^(\w+)|.*$/i;
+		$_nick = $1;
+		$self->addQuote($event, $_nick, $_quote);
+	} elsif (my ($_trigger, $_number) = $message =~ m/^\s*(delquote)\s*(\d+)\s*$/osi) {
+			$self->delQuote($event, $_number);
+	} elsif (my ($_trigger, $_nick) = $message =~ m/^\s*(nickquote)\s*(\S*)\s*$/osi) {
+		# TODO: sanitize input
+		$_nick =~ s/\"/\\\"/g;
+		$_nick =~ s/;/\\;/g;
+		$self->getNickQuote($event, $_nick);
+	} elsif (my ($_trigger, $_search) = $message =~ m/^\s*(findquote)\s*(.*)$/osi) {
+		# TODO: sanitize input
+		$_search =~ s/\"/\\\"/g;
+		$_search =~ s/;/\\;/g;
+		$self->findQuote($event, $_search);
+	} elsif (my ($_trigger, $_number) = $message =~ m/^\s*(numquote)\s*(\d+)\s*$/osi) {
+			$self->numQuote($event, $_number);
+	} elsif (my ($_trigger, $_nick) = $message =~ m/^\s*(morequotestats)\s*(\S*)\s*$/osi) {
+			$_nick =~ s/\"/\\\"/g;
+			$_nick =~ s/;/\\;/g;
+			$self->moreQuoteStats($event, $_nick);
+	} else {
+		return $self->SUPER::Told(@_);
+	}
+
+	return 0;
+}
