@@ -1,0 +1,177 @@
+#!/usr/bin/perl
+
+package BotModules::Imgur;
+use LWP::Protocol::https;
+use LWP;
+use JSON qw(decode_json);
+use URI qw();
+use URI::QueryParam qw();
+use vars qw(@ISA);
+@ISA = qw(BotModules);
+1;
+
+my $client_id = 'CLIENT_ID_GOES_HERE';
+
+sub getImgurTitle {
+	my $self = shift;
+	my $requestUrl = $_[0];
+
+	my $browser = LWP::UserAgent->new();
+	$browser->default_header('Authorization' => 'Client-ID '.$client_id);
+
+	my $response = $browser->get($requestUrl);
+	my $decoded_json = JSON::decode_json( $response->{'_content'} );
+	my $title = $decoded_json->{'data'}{'title'};
+
+	return $title;
+}
+
+sub getGalleryTitle {
+	my $self = shift;
+	my $url = $_[0];
+
+	my $link = URI->new($url);
+	my @url_parts = split(/\//, $link->path);
+	my $gallery_id = $url_parts[scalar(@url_parts) - 1];
+	my $requestUrl = 'https://api.imgur.com/3/gallery/'.$gallery_id;
+
+	my $title = $self->getImgurTitle($requestUrl);
+
+	return $title;
+}
+
+sub HeardGallery {
+	my $self = shift;
+	my ($event, $url) = @_;
+
+	my $title = $self->getGalleryTitle($url);
+
+	if ($title ne '') {
+		$self->say($event, "[Gallery] - $title");
+	}
+}
+
+sub ToldGallery {
+	my $self = shift;
+	my ($event, $url) = @_;
+
+	my $title = $self->getGalleryTitle($url);
+
+	if ($title ne '') {
+		$self->say($event, "$event->{'from'}: [Gallery] - $title");
+	}
+}
+
+sub getImageTitle {
+	my $self = shift;
+	my $url = $_[0];
+
+	my $link = URI->new($url);
+	my @url_parts = split(/\//, $link->path);
+	my $image_id = $url_parts[scalar(@url_parts) - 1];
+
+	my $requestUrl = 'https://api.imgur.com/3/image/'.$image_id;
+
+	my $title = $self->getImgurTitle($requestUrl);
+
+	return $title;
+}
+
+sub ToldImage {
+	my $self = shift;
+	my ($event, $url) = @_;
+
+	my $title = $self->getImageTitle($url);
+
+	if ($title ne '') {
+		$self->say($event, "$event->{'from'}: [Image] - $title");
+	}
+}
+
+sub HeardImage {
+	my $self = shift;
+	my ($event, $url) = @_;
+
+	my $title = $self->getImageTitle($url);
+
+	if ($title ne '') {
+		$self->say($event, "[Image] - $title");
+	}
+}
+
+sub getAlbumTitle {
+	my $self = shift;
+	my $url = $_[0];
+
+	my $link = URI->new($url);
+	my @url_parts = split(/\//, $link->path);
+	my $album_id = $url_parts[scalar(@url_parts) - 1];
+
+	my $requestUrl = 'https://api.imgur.com/3/album/'.$album_id;
+
+	my $title = $self->getImgurTitle($requestUrl);
+
+	return $title;
+}
+
+sub ToldAlbum {
+	my $self = shift;
+	my ($event, $url) = @_;
+
+	my $title = $self->getAlbumTitle($url);
+
+	if ($title ne '') {
+		$self->say($event, "$event->{'from'}: [Album] - $title");
+	}
+}
+
+sub HeardAlbum {
+	my $self = shift;
+	my ($event, $url) = @_;
+
+	my $title = $self->getAlbumTitle($url);
+
+	if ($title ne '') {
+		$self->say($event, "[Album] - $title");
+	}
+}
+
+sub Heard {
+	my $self = shift;
+	my ($event, $message) = @_;
+	if (my ($url) = $message =~ m/.*(http(s)?:\/\/(www\.)?imgur\.com\/gallery\/[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
+		$self->HeardGallery($event, $url);
+	} elsif (my ($url) = $message =~ m/.*(http(s)?:\/\/(www\.)?imgur\.com\/a\/[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
+		$self->HeardAlbum($event, $url);
+	} elsif (my ($url) = $message =~ m/.*(http(s)?:\/\/(www\.)?imgur\.com\/[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
+		$self->HeardImage($event, $url);
+	} elsif (my ($url) = $message =~ m/.*(http(s)?:\/\/i\.imgur\.com\/[0-9a-zA-Z_?=&-]+\.(png|jpg|gif))\s*.*$/osi) {
+		$url =~ s/i\.//;
+		$url =~ s/\.(png|jpg|gif)//;
+		$self->HeardImage($event, $url);
+	} else {
+		return $self->SUPER::Heard(@_);
+	}
+
+	return 0;
+}
+
+sub Told {
+	my $self = shift;
+	my ($event, $message) = @_;
+	if (my ($url) = $message =~ m/.*(http(s)?:\/\/(www\.)?imgur\.com\/gallery\/[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
+		$self->ToldGallery($event, $url);
+	} elsif (my ($url) = $message =~ m/.*(http(s)?:\/\/(www\.)?imgur\.com\/a\/[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
+		$self->ToldAlbum($event, $url);
+	} elsif (my ($url) = $message =~ m/.*(http(s)?:\/\/(www\.)?imgur\.com\/[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
+		$self->ToldImage($event, $url);
+	} elsif (my ($url) = $message =~ m/.*(http(s)?:\/\/i\.imgur\.com\/[0-9a-zA-Z_?=&-]+\.(png|jpg|gif))\s*.*$/osi) {
+		$url =~ s/i\.//;
+		$url =~ s/\.(png|jpg|gif)//;
+		$self->ToldImage($event, $url);
+	} else {
+		return $self->SUPER::Told(@_);
+	}
+
+	return 0;
+}
