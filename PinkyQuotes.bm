@@ -1,5 +1,8 @@
 #!/usr/bin/perl
 
+# A module written to get quotes from Pinky & The Brain
+# Patrick Connelly (patrick@deadlypenguin.com)
+
 package BotModules::PinkyQuotes;
 use vars qw(@ISA);
 @ISA = qw(BotModules);

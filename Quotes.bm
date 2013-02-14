@@ -1,5 +1,10 @@
 #!/usr/bin/perl
 
+# A module written to store and retrieve quotes
+# Patrick Connelly (patrick@deadlypenguin.com
+#
+# NOTE: Databaes must be created with the quotes.sql file
+
 use DBI();
 
 package BotModules::Quotes;

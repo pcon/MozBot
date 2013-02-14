@@ -1,5 +1,8 @@
 #!/usr/bin/perl
 
+# A module written to get the information about Imgur links pasted into channel
+# Patrick Connelly (patrick@deadlypenguin.com)
+
 package BotModules::Imgur;
 use LWP::Protocol::https;
 use LWP;
