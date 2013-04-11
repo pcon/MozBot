@@ -1,8 +1,5 @@
 #!/usr/bin/perl
 
-# A module written to get the information about Imgur links pasted into channel
-# Patrick Connelly (patrick@deadlypenguin.com)
-
 package BotModules::Imgur;
 use LWP::Protocol::https;
 use LWP;
@@ -19,10 +16,14 @@ sub getImgurTitle {
 	my $self = shift;
 	my $requestUrl = $_[0];
 
-	my $browser = LWP::UserAgent->new();
-	$browser->default_header('Authorization' => 'Client-ID '.$client_id);
+	my $ua = LWP::UserAgent->new();
+	$ua->agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.22 (KHTML, like Gecko) Chrome/25.0.1364.172 Safari/537.22");
 
-	my $response = $browser->get($requestUrl);
+	my $request = new HTTP::Request 'GET' => $requestUrl;
+	$request->header('Authorization' => 'Client-ID '.$client_id);
+	$request->header('Accept' => 'application/json');
+
+	my $response = $ua->request($request);
 	my $decoded_json = JSON::decode_json( $response->{'_content'} );
 	my $title = $decoded_json->{'data'}{'title'};
 
@@ -88,6 +89,8 @@ sub ToldImage {
 
 	if ($title ne '') {
 		$self->say($event, "$event->{'from'}: [Image] - $title");
+	} else {
+		$self->ToldGallery($event, $url);
 	}
 }
 
@@ -99,6 +102,8 @@ sub HeardImage {
 
 	if ($title ne '') {
 		$self->say($event, "[Image] - $title");
+	} else {
+		$self->HeardGallery($event, $url);
 	}
 }
 
