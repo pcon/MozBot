@@ -1,0 +1,147 @@
+#!/usr/bin/perl
+
+#use LWP::Simple;
+#use LWP::Authen::OAuth;
+use JSON qw(decode_json);
+use Data::Dumper;
+use Date::Parse;
+use POSIX qw(strftime);
+use HTML::Entities qw(decode_entities);
+use MIME::Base64;
+use strict;
+
+package BotModules::Twitter;
+use vars qw(@ISA);
+@ISA = qw(BotModules);
+1;
+
+my $APP_KEY_NAME = 'TEMBOO_APP_NAME';
+my $APP_KEY_VALUE = 'TEMBOO_APP_KEY';
+my $TEMBOO_ACCT = 'TEMBOO_ACCT_NAME';
+my $TEMBOO_DOMAIN = '/'.$TEMBOO_ACCT.'/master';
+my $TEMBOO_TWITTER_URI = 'https://'.$TEMBOO_ACCT.'.temboolive.com/temboo-api/1.0/choreos/Library/Twitter/';
+my $TEMBOO_PRESET = 'TEMBOO_PRESET';
+
+sub Help {
+	my $self = shift;
+	my ($event) = @_;
+	return {
+		'' => 'The twitter module.  See help for latest, id',
+		'latest' => 'Gets the most recent (non-@) tweet.  latest [user]',
+		'id' => 'Gets a twitter post by id.  id [id]',
+	};
+}
+
+sub getRequest {
+	my ($url) = @_;
+	my $req = HTTP::Request->new('POST', $url);
+	$req->header('x-temboo-domain' => $TEMBOO_DOMAIN);
+	$req->header('Content-Type' => 'application/json');
+	$req->header('Accept' => 'application/json');
+	$req->header('Authorization' => 'Basic '.MIME::Base64::encode($APP_KEY_NAME.":".$APP_KEY_VALUE));
+
+	return $req
+}
+
+sub sayTwitterById {
+	my ($id) = @_;
+	my $url = $TEMBOO_TWITTER_URI.'Tweets/StatusesShow';
+	my $data_hash = my $data = {
+		'preset' => $TEMBOO_PRESET,
+		'inputs' => [
+			{   
+				'name' => 'ID',
+				'value' => $id
+			}
+		]
+	};
+	my $data = JSON::encode_json($data_hash);
+
+	my $req = getRequest($url);
+	$req->content($data);
+	my $lwp = LWP::UserAgent->new;
+	my $response = $lwp->request($req);
+
+	die "Could not get $url" unless defined $response;
+
+	my $decoded_json = JSON::decode_json( $response->{'_content'} );
+	my $output = 'Could not find tweet';
+
+	if ($decoded_json->{'output'}->{'Response'} ne '') {
+		my $search_response = JSON::decode_json($decoded_json->{'output'}->{'Response'});
+
+		my $text = HTML::Entities::decode_entities($search_response->{'text'});
+		my $from = $search_response->{'user'}{'screen_name'};
+		my $when = POSIX::strftime('%Y-%m-%d %H:%M:%S', localtime(Date::Parse::str2time($search_response->{'created_at'})));
+		$output = ''.$text.' [@'.$from.'] ('.$when.')'."\n";
+	}
+
+	return $output;
+}
+
+sub sayTwitterByUser {
+	my ($user) = @_;
+	my $count = 20;
+	my $url = $TEMBOO_TWITTER_URI.'Search/Tweets';
+	my $data_hash = my $data = {
+		'preset' => $TEMBOO_PRESET,
+		'inputs' => [
+			{
+				'name' => 'Count',
+				'value' => $count
+			},
+			{   
+				'name' => 'Query',
+				'value' => 'from:'.$user
+			},
+			{
+				'name' => 'ResultType',
+				'value' => 'recent'
+			}
+		]
+	};
+	my $data = JSON::encode_json($data_hash);
+
+	my $req = getRequest($url);
+	$req->content($data);
+	my $lwp = LWP::UserAgent->new;
+	my $response = $lwp->request($req);
+
+	die "Could not get $url" unless defined $response;
+
+	my $decoded_json = JSON::decode_json($response->{'_content'});
+	my $search_response = JSON::decode_json($decoded_json->{'output'}->{'Response'});
+
+	my $results = $search_response->{'statuses'};
+
+	for (my $i = 0; $i < $count; $i++) {
+		my $data = $search_response->{'statuses'}[$i];
+
+		my $text = $data->{'text'};
+		if ($text =~ m/^@.*/osi) {
+		} elsif ($text =~ m/^.+$/osi) {
+			$text = HTML::Entities::decode_entities($text);
+			my $from = $data->{'user'}->{'screen_name'};
+			my $when = POSIX::strftime('%Y-%m-%d %H:%M:%S', localtime(Date::Parse::str2time($data->{'created_at'})));
+			my $output = ''.$text.' [@'.$from.'] ('.$when.')'."\n";
+			return $output;
+		}
+	}
+
+	return '';
+}
+
+sub Told {     
+	my $self = shift;
+	my ($event, $message) = @_;
+
+	if (my ($trigger, $type, $data) = $message =~ m/^\s*(twitter)\s*(latest)\s*(\S*)\s*$/osi) {
+		$self->say($event, sayTwitterByUser($data));
+	} elsif (my ($trigger, $type, $data) = $message =~ m/^\s*(twitter)\s*(id)\s*(\S*)\s*$/osi) {
+		$self->say($event, sayTwitterById($data));
+	} else {
+          return $self->SUPER::Told(@_);
+     }
+     
+     return 0;
+}
