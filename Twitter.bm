@@ -139,7 +139,7 @@ sub Told {
 		$self->say($event, sayTwitterByUser($data));
 	} elsif (my ($trigger, $type, $data) = $message =~ m/^\s*(twitter)\s*(id)\s*(\S*)\s*$/osi) {
 		$self->say($event, sayTwitterById($data));
-	} elsif (my ($user, $id) = $message =~ m/.*http(?:s)?:\/\/(?:www\.)?twitter\.com\/([0-9a-zA-Z]+)\/status\/([0-9]+)\s*.*$/osi) {
+	} elsif (my ($user, $id) = $message =~ m/.*http(?:s)?:\/\/(?:www\.)?twitter\.com\/([0-9a-zA-Z_]+)\/status\/([0-9]+)\s*.*$/osi) {
 		$self->say($event, sayTwitterById($id));
 	} else {
           return $self->SUPER::Told(@_);
@@ -152,7 +152,7 @@ sub Heard {
 	my $self = shift;
 	my ($event, $message) = @_;
 
-	if (my ($user, $id) = $message =~ m/.*http(?:s)?:\/\/(?:www\.)?twitter\.com\/([0-9a-zA-Z]+)\/status\/([0-9]+)\s*.*$/osi) {
+	if (my ($user, $id) = $message =~ m/.*http(?:s)?:\/\/(?:www\.)?twitter\.com\/([0-9a-zA-Z_]+)\/status\/([0-9]+)\s*.*$/osi) {
 		$self->say($event, sayTwitterById($id));
 	}
 }
