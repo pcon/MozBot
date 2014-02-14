@@ -1,0 +1,68 @@
+#!/usr/bin/perl
+
+package BotModules::Vimeo;
+use Data::Dumper;
+use LWP::Simple;
+use JSON;
+use vars qw(@ISA);
+@ISA = qw(BotModules);
+1;
+
+sub getTitle {
+	my $self = shift;
+	my ($event, $vid_id) = @_;
+
+	my $url = 'http://vimeo.com/api/v2/video/'.$vid_id.'.json';
+	my $json = new JSON;
+     my $json_text = $json->decode(get($url));
+
+	my $title = $json_text->[0]->{title};
+
+	return $title;
+}
+
+sub HeardVid {
+	my $self = shift;
+	my ($event, $id) = @_;
+
+	my $title = $self->getTitle($event, $id);
+
+	if ($title ne '') {
+		$self->say($event, "[Title] - $title");
+	}
+}
+
+sub ToldVid {
+	my $self = shift;
+	my ($event, $id) = @_;
+
+	my $title = $self->getTitle($event, $id);
+
+	if ($title ne '') {
+		$self->say($event, "$event->{'from'}: [Title] - $title");
+	}
+}
+
+sub Heard {
+     my $self = shift;
+     my ($event, $message) = @_;
+     if (my ($id) = $message =~ m/.*https?:\/\/(?:www\.)?vimeo\.com\/([0-9]+)\s*.*$/osi) {
+		$self->HeardVid($event, $id);
+	} else {
+		return $self->SUPER::Heard(@_);
+	}
+
+	return 0;
+}
+
+sub Told {
+     my $self = shift;
+     my ($event, $message) = @_;
+     if (my ($id) = $message =~ m/.*https?:\/\/(?:www\.)?vimeo\.com\/([0-9]+)\s*.*$/osi) {
+		$self->ToldVid($event, $id);
+	} else {
+		return $self->SUPER::Told(@_);
+	}
+
+	return 0;
+}
