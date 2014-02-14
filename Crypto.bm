@@ -1,0 +1,68 @@
+#!/usr/bin/perl
+
+package BotModules::Crypto;
+use POSIX qw( strftime );
+use Data::Dumper;
+use XML::Simple;
+use LWP::Simple;
+use JSON;
+use vars qw(@ISA);
+@ISA = qw(BotModules);
+1;
+
+my $API_HOST = "http://coinmarketcap.northpole.ro/api/all.json";
+
+sub Help {
+	my $self = shift;
+	my ($event) = @_;
+	return {
+		'' => 'This checks the status of a salesforce instance',
+		'crypto <id>' => 'Gets the value of a given currency',
+		'crypto <id> <quantity>' => 'Gets the value in USD of a given currency'
+	}
+}
+
+sub GetInfo {
+	my $self = shift;
+	my ($event, $id, $amt) = @_;
+
+	my $json = new JSON;
+	my $json_text = $json->decode(get($API_HOST));
+	my $lastupdate = strftime("%Y-%m-%d %H:%M:%S", gmtime($json_text->{timestamp}));
+
+	for (@{$json_text->{markets}}) {
+		my $market = $_;
+		if ($market->{id} eq $id) {
+			my $name = $market->{name};
+			my $pname = $name;
+
+			if ($pname !~ /s$/) {
+				$pname .= "s";
+			}
+
+			my ($junk, $price) = split(' ', $market->{price}, 2);
+			my $change = $market->{change24};
+
+			if ($amt) {
+				my $value = $amt * $price;
+				return "The current value of $amt $pname is \$$value (USD) as of $lastupdate UTC";
+			}
+
+			return "$name is trading at \$$price (USD) [$change] as of $lastupdate UTC";
+		}
+	}
+
+	return 'Unknown id '.$id;
+}
+
+sub Told {
+	my $self = shift;
+	my ($event, $message) = @_;
+	if (my($id, $amt) = $message =~ /^crypto ([a-zA-Z]+)\W*([0-9.]*)$/osi) {
+		my $result = $self->GetInfo($event, $id, $amt);
+		$self->say($event, "$event->{'from'}: $result");
+		return 0;
+	} else {
+		return $self->SUPER::Told(@_);
+	}
+}
