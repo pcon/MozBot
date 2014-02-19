@@ -16,7 +16,7 @@ sub Help {
 	my $self = shift;
 	my ($event) = @_;
 	return {
-		'' => 'This checks the status of a salesforce instance',
+		'' => 'This checks the status of crypto currencies',
 		'crypto <id>' => 'Gets the value of a given currency',
 		'crypto <id> <quantity>' => 'Gets the value in USD of a given currency'
 	}
@@ -40,15 +40,16 @@ sub GetInfo {
 				$pname .= "s";
 			}
 
-			my ($junk, $price) = split(' ', $market->{price}, 2);
+			my $price = $market->{price};
 			my $change = $market->{change24};
+			my $currency = uc($market->{currency});
 
 			if ($amt) {
 				my $value = $amt * $price;
-				return "The current value of $amt $pname is \$$value (USD) as of $lastupdate UTC";
+				return "The current value of $amt $pname is \$$value ($currency) as of $lastupdate UTC";
 			}
 
-			return "$name is trading at \$$price (USD) [$change] as of $lastupdate UTC";
+			return "$name is trading at \$$price ($currency) [$change] as of $lastupdate UTC";
 		}
 	}
 
