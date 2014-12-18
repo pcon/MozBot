@@ -161,7 +161,7 @@ sub findQuote {
 
 	my ($hashref) = $sth->fetchrow_hashref();
 	if ($hashref == 0) {
-		$self->directSay($event, "No quotes found.  Sorry.\n");
+		$self->say($event, "$event->{'from'}: No quotes found.  Sorry.\n");
 	} else {
 		if ($sth->rows == 1) {
 			$self->sayQuote($event, $hashref->{'quote'}, $hashref->{'quoted'}, $hashref->{'qtime'}, $hashref->{'qid'});
