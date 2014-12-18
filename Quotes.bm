@@ -1,10 +1,5 @@
 #!/usr/bin/perl
 
-# A module written to store and retrieve quotes
-# Patrick Connelly (patrick@deadlypenguin.com
-#
-# NOTE: Databaes must be created with the quotes.sql file
-
 use DBI();
 
 package BotModules::Quotes;
@@ -12,11 +7,8 @@ use vars qw(@ISA);
 @ISA = qw(BotModules);
 1;
 
-my @mirc_color_arr = ("\0031","\0035","\0033","\0037","\0032","\0036",
-									"\00310","\0030","\00314","\0034","\0039","\0038",
-									"\00312","\00313","\00311","\00315","\017");
-
 my @quotedBlacklist = ();
+
 my @addquoteBlacklist = ();
 
 sub Help {
@@ -24,12 +16,12 @@ sub Help {
 	my ($event) = @_;
 	return {
 		'' => 'The quote module.  See help for quote, addquote, delquote, nickquote, findquote, numquote quotestats',
-		'quote' => 'Randomly recalls a quote.',	
+		'quote' => 'Randomly recalls a quote.',
 		'newquote' => 'Picks the newest quote for a channel or user.  newquote [<nick>]',
 		'addquote' => 'Adds a quote from a particular nick.  addquote <nick> <quote>',
 		'delquote' => 'Removes a specific quote.  delquote <qid>',
 		'nickquote' => 'Randomly recalls a quote from a particular nick.  nickquote <nick>',
-		'findquote' => 'Randomly recalls a quote that matches the string.  findquote <string>',	
+		'findquote' => 'Randomly recalls a quote that matches the string.  findquote <string>',
 		'numquote' => 'Rcalls a quote specific quote number.  numquote <qid>',
 		'quotestats' => 'Gives the number of quotes for a particular nick or current channel.  quotestats [<nick>]',
 		'morequotestats' => 'Gives advanced quote stats for a particular nick or current channel.  morequotestats [<nick>]'
@@ -38,7 +30,7 @@ sub Help {
 
 sub dbConnect {
 	my $dbUser = "USERNAME";
-	my $dbPass = "PASSWORD";
+	my $dbPass = 'PASSWORD';
 	my $dbh = DBI->connect("DBI:mysql:database=quotes;host=localhost",
 		$dbUser, $dbPass,
 		{'RaiseError' => 1});
@@ -49,7 +41,10 @@ sub sayQuote {
 	my $self = shift;
 	my ($event, $quote, $nick, $qtime, $qid) = @_;
 
-	$self->say($event, "$mirc_color_arr[11]\"$quote\"$mirc_color_arr[12] -- $mirc_color_arr[14]$nick, $mirc_color_arr[8]$qtime [$qid]\n");
+	$quote =~ s/^"//;
+	$quote =~ s/"$//;
+
+	$self->say($event, "\"$quote\" -- $nick, $qtime [$qid]\n");
 }
 
 sub getRandQuote {
@@ -152,7 +147,7 @@ sub delQuote {
 			$self->say($event, "$event->{'from'}: The delete failed.  I'm sorry.\n");
 		}
 	} else {
-		$self->say($event, "$event->{'from'}: Sorry, you don't have the permissions.  Ask my owner too.  and have a good reason.\n");
+		$self->say($event, "$event->{'from'}: Sorry, you don't have the permissions.  Ask my owner to, and have a good reason.\n");
 	}
 }
 
@@ -168,12 +163,22 @@ sub findQuote {
 	if ($hashref == 0) {
 		$self->directSay($event, "No quotes found.  Sorry.\n");
 	} else {
-		do {
-			if ($hashref->{'quote'} eq "") {
+		if ($sth->rows == 1) {
+			$self->sayQuote($event, $hashref->{'quote'}, $hashref->{'quoted'}, $hashref->{'qtime'}, $hashref->{'qid'});
+		} else {
+			if ($sth->rows < 5) {
+				do {
+					if ($hashref->{'quote'} eq "") {
+					} else {
+						$self->directSay($event, "[$hashref->{'qid'}] \"$hashref->{'quote'}\" -- $hashref->{'quoted'} $hashref->{'qtime'}\n");
+					}
+				} while (($hashref) = $sth->fetchrow_hashref());
 			} else {
-				$self->directSay($event, "[$hashref->{'qid'}] \"$hashref->{'quote'}\" -- $hashref->{'quoted'} $hashref->{'qtime'}\n");
+				my $row_count = $sth->rows;
+				$search =~ s/([^^A-Za-z0-9\-_.!~*'()])/ sprintf "%%%0x", ord $1 /eg;
+				$self->directSay($event, "Found $row_count consider using the web interface or refining your search. http://deadlypenguin.com/code/quotes/#search=$search");
 			}
-		} while (($hashref) = $sth->fetchrow_hashref());
+		}
 	}
 }
 
@@ -230,7 +235,7 @@ sub moreQuoteStats {
 
 		my ($hashref) = $sth->fetchrow_hashref();
 		if ($hashref == 0) {
-				$numquoter=0;
+			$numquoter=0;
 		} else {
 			$numquoter=$hashref->{'number'};
 			$topquoter=$hashref->{'nick'};
@@ -238,7 +243,7 @@ sub moreQuoteStats {
 
 		if ($numquotes == 0) {
 			$self->say($event, "I have no quotes for this channel.\n");
-		} else {			
+		} else {
 			$self->say($event, "The person with the most quotes is $topquoted with $numquotes quotes and $topquoter has stored $numquoter in my database\n");
 		}
 	} else {
@@ -256,13 +261,13 @@ sub moreQuoteStats {
 		$sth->execute();
 
 		my ($hashref) = $sth->fetchrow_hashref();
-	if ($hashref == 0) {
-				$numquoter=0;
-	} else {
+		if ($hashref == 0) {
+			$numquoter=0;
+		} else {
 			$numquoter=$hashref->{'number'};
 		}
 		if ($numquotes == 0 && $numquoter == 0) {
-	                $self->say($event, "$event->{'from'}: Sorry.  I don't have anything for that nick.\n");
+			$self->say($event, "$event->{'from'}: Sorry.  I don't have anything for that nick.\n");
 		} elsif ($numquotes == 0) {
 			$self->say($event, "$nick has no quotes for this channel, and has quoted $numquoter people\n");
 		} elsif ($numquoter == 0) {
@@ -297,9 +302,9 @@ sub newQuote {
 	my ($hashref) = $sth->fetchrow_hashref();
 
 	if ($hashref == 0) {
-		$self->say($event, "No quotes found for nick $nick\n");
+			$self->say($event, "No quotes found for nick $nick\n");
 	} else {
-		$self->sayQuote($event, $hashref->{'quote'}, $hashref->{'quoted'}, $hashref->{'qtime'}, $hashref->{'qid'});
+			$self->sayQuote($event, $hashref->{'quote'}, $hashref->{'quoted'}, $hashref->{'qtime'}, $hashref->{'qid'});
 	}
 }
 
@@ -323,10 +328,10 @@ sub quoteStats {
 		$sth=$dbh->prepare("select count(qid) as number from quotes where channel = \"$event->{'channel'}\" and quoted = \"$nick\"");
 	}
 	$sth->execute();
-	my ($hashref) = $sth->fetchrow_hashref();
-	if ($hashref == 0) {
-		$self->say($event, "$event->{'from'}: Sorry.  That nick doesn't have any quotes.\n");
-	} else {
+		my ($hashref) = $sth->fetchrow_hashref();
+		if ($hashref == 0) {
+				$self->say($event, "$event->{'from'}: Sorry.  That nick doesn't have any quotes.\n");
+		} else {
 		if ($nick eq "") {
 			$self->say($event, "I have $hashref->{'number'} quotes for this channel.\n");
 		} else {
@@ -335,23 +340,45 @@ sub quoteStats {
 	}
 }
 
+sub Heard {
+	my $self = shift;
+	my ($event, $message) = @_;
+
+	if (my ($_number) = $message =~ m/.*http:\/\/deadlypenguin\.com\/code\/quotes\/#id=(\d+)\s*.*$/osi) {
+		$self->numQuote($event, $_number);
+	} else {
+		return $self->SUPER::Heard(@_);
+	}
+
+	return 0;
+}
 
 sub Told {
 	my $self = shift;
 	my ($event, $message) = @_;
 
+#	$message =~ m/^\s*(zomg)[ |:,]\s*([A-Za-z_|]+)\s(.*)$/osi;
+#	my $_trigger = $2;
+#	my $_rest = $3;
+
+#	$self->debug("$_trigger ~~~ $1-$2-$3-$4");
+
 	if (my ($_trigger) = $message =~ m/^\s*(quote)\s*$/osi) {
 		$self->getRandQuote($event);
 	} elsif (my ($_trigger, $_nick) = $message =~ m/^\s*(quotestats)\s*(\S*)\s*$/osi) {
-			$_nick =~ s/\"/\\\"/g;
-			$_nick =~ s/;/\\;/g;
-			$self->quoteStats($event, $_nick);
+		$_nick =~ s/\"/\\\"/g;
+		$_nick =~ s/;/\\;/g;
+		$self->quoteStats($event, $_nick);
 	} elsif (my ($_trigger, $_nick) = $message =~ m/^\s*(newquote)\s*(\S*)\s*$/osi) {
 			$_nick =~ s/\"/\\\"/g;
-			$_nick =~ s/;/\\;/g;
+		$_nick =~ s/;/\\;/g;
 			$self->newQuote($event, $_nick);
 	} elsif (my ($_trigger, $_nick) = $message =~ m/^\s*(quote)\s*(\S*)\s*$/osi) {
 		# TODO: sanitize input
+		$_nick =~ s/\"/\\\"/g;
+		$_nick =~ s/;/\\;/g;
+		$self->getNickQuote($event, $_nick);
+	} elsif (my ($_nick) = $message =~ m/^\s*(?:what does the)\s*(\S*)\s*(?:say\?)\s*$/osi) {
 		$_nick =~ s/\"/\\\"/g;
 		$_nick =~ s/;/\\;/g;
 		$self->getNickQuote($event, $_nick);
@@ -368,7 +395,7 @@ sub Told {
 		$_nick = $1;
 		$self->addQuote($event, $_nick, $_quote);
 	} elsif (my ($_trigger, $_number) = $message =~ m/^\s*(delquote)\s*(\d+)\s*$/osi) {
-			$self->delQuote($event, $_number);
+		$self->delQuote($event, $_number);
 	} elsif (my ($_trigger, $_nick) = $message =~ m/^\s*(nickquote)\s*(\S*)\s*$/osi) {
 		# TODO: sanitize input
 		$_nick =~ s/\"/\\\"/g;
@@ -380,11 +407,13 @@ sub Told {
 		$_search =~ s/;/\\;/g;
 		$self->findQuote($event, $_search);
 	} elsif (my ($_trigger, $_number) = $message =~ m/^\s*(numquote)\s*(\d+)\s*$/osi) {
-			$self->numQuote($event, $_number);
+		$self->numQuote($event, $_number);
+	} elsif (my ($_number) = $message =~ m/.*http:\/\/deadlypenguin\.com\/code\/quotes\/#id=(\d+)\s*.*$/osi) {
+		$self->numQuote($event, $_number);
 	} elsif (my ($_trigger, $_nick) = $message =~ m/^\s*(morequotestats)\s*(\S*)\s*$/osi) {
-			$_nick =~ s/\"/\\\"/g;
-			$_nick =~ s/;/\\;/g;
-			$self->moreQuoteStats($event, $_nick);
+		$_nick =~ s/\"/\\\"/g;
+		$_nick =~ s/;/\\;/g;
+		$self->moreQuoteStats($event, $_nick);
 	} else {
 		return $self->SUPER::Told(@_);
 	}
