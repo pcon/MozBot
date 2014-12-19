@@ -1,9 +1,7 @@
 #!/usr/bin/perl
 
-# A module to get the title of a YouTube video if told or overheard in the channell
-# Patrick Connelly (patrick@deadlypenguin.com)
-
 package BotModules::YouTube;
+use Data::Dumper;
 use XML::Simple;
 use LWP::Simple;
 use URI qw();
@@ -13,18 +11,26 @@ use vars qw(@ISA);
 @ISA = qw(BotModules);
 1;
 
+my @blacklist = ();
+
 sub printTitle {
 	my $self = shift;
 	my ($event, $vid_id) = @_;
 
-	my $url = 'http://gdata.youtube.com/feeds/api/videos?v=2&q='.$vid_id.'&max-results=1&fields=entry(title)&prettyprint=true';
+	my $url = 'http://gdata.youtube.com/feeds/api/videos?v=2&q='.$vid_id.'&max-results=1&fields=entry(title,yt:rating,yt:statistics)&prettyprint=true';
 
 	my $xml = get($url);
 	my $rp = new XML::Simple;
 	my $data = $rp->XMLin($xml);
 	my $title = $data->{'entry'}->{'title'};
+	my $views = $data->{'entry'}->{'yt:statistics'}->{'viewCount'};
+	$views =~ s/(\d)(?=(\d{3})+(\D|$))/$1\,/g;
+	my $likes = $data->{'entry'}->{'yt:rating'}->{'numLikes'};
+	$likes =~ s/(\d)(?=(\d{3})+(\D|$))/$1\,/g;
+	my $dislikes = $data->{'entry'}->{'yt:rating'}->{'numDislikes'};
+	$dislikes =~ s/(\d)(?=(\d{3})+(\D|$))/$1\,/g;
 
-	return $title;
+	return $title.' ['.$likes.' / '.$dislikes.' : '.$views.' views]';
 }
 
 sub HeardVid {
@@ -56,9 +62,18 @@ sub ToldVid {
 sub Heard {
      my $self = shift;
      my ($event, $message) = @_;
+
+	for (my $i=0; $i<scalar(@blacklist); $i++) {
+		if (($event->{'from'} =~ m/$blacklist[$i]/) || ($event->{'user'} =~ m/$blacklist[$i]/)) {
+			return $self->SUPER::Heard(@_);
+		}
+     }
+
      if (my ($url) = $message =~ m/.*(http:\/\/www\.youtube\.com\/[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
 		$self->HeardVid($event, $url);
      } elsif (my ($url) = $message =~ m/.*(https:\/\/www\.youtube\.com\/[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
+		$self->HeardVid($event, $url);
+     } elsif (my ($url) = $message =~ m/.*(https?:\/\/m\.youtube\.com\/[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
 		$self->HeardVid($event, $url);
      } elsif (my ($url) = $message =~ m/.*(http:\/\/youtu\.be\/[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
 		my $link = URI->new($url);
@@ -77,9 +92,18 @@ sub Heard {
 sub Told {
      my $self = shift;
      my ($event, $message) = @_;
+
+	for (my $i=0; $i<scalar(@blacklist); $i++) {
+		if (($event->{'from'} =~ m/$blacklist[$i]/) || ($event->{'user'} =~ m/$blacklist[$i]/)) {
+			return $self->SUEPER::Told(@_);
+		}
+     }
+
      if (my ($url) = $message =~ m/.*(http:\/\/www\.youtube\.com\/[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
 		$self->ToldVid($event, $url);
      } elsif (my ($url) = $message =~ m/.*(https:\/\/www\.youtube\.com\/[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
+		$self->ToldVid($event, $url);
+     } elsif (my ($url) = $message =~ m/.*(https?:\/\/m\.youtube\.com\/[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
 		$self->ToldVid($event, $url);
      } elsif (my ($url) = $message =~ m/.*(http:\/\/youtu\.be\/[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
 		my $link = URI->new($url);
