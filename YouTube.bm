@@ -17,17 +17,24 @@ sub printTitle {
 	my $self = shift;
 	my ($event, $vid_id) = @_;
 
-	my $url = 'http://gdata.youtube.com/feeds/api/videos?v=2&q='.$vid_id.'&max-results=1&fields=entry(title,yt:rating,yt:statistics)&prettyprint=true';
+	# Leaving the old URL here for reference
+	#my $url = 'http://gdata.youtube.com/feeds/api/videos?v=2&q='.$vid_id.'&max-results=1&fields=entry(title,yt:rating,yt:statistics)&prettyprint=true';
+	my $url = 'http://gdata.youtube.com/feeds/api/videos/'.$vid_id.'?v=2&fields=title,yt:rating,yt:statistics&prettyprint=true';
 
 	my $xml = get($url);
 	my $rp = new XML::Simple;
 	my $data = $rp->XMLin($xml);
-	my $title = $data->{'entry'}->{'title'};
-	my $views = $data->{'entry'}->{'yt:statistics'}->{'viewCount'};
+	my $title = $data->{'title'};
+
+	if ($title eq '') {
+		return '';
+	}
+
+	my $views = $data->{'yt:statistics'}->{'viewCount'};
 	$views =~ s/(\d)(?=(\d{3})+(\D|$))/$1\,/g;
-	my $likes = $data->{'entry'}->{'yt:rating'}->{'numLikes'};
+	my $likes = $data->{'yt:rating'}->{'numLikes'};
 	$likes =~ s/(\d)(?=(\d{3})+(\D|$))/$1\,/g;
-	my $dislikes = $data->{'entry'}->{'yt:rating'}->{'numDislikes'};
+	my $dislikes = $data->{'yt:rating'}->{'numDislikes'};
 	$dislikes =~ s/(\d)(?=(\d{3})+(\D|$))/$1\,/g;
 
 	return $title.' ['.$likes.' / '.$dislikes.' : '.$views.' views]';
@@ -42,7 +49,7 @@ sub HeardVid {
 	my $title = $self->printTitle($event, $vid_id);
 
 	if ($title ne '') {
-		$self->say($event, "[Title] - $title");
+		$self->say($event, "$title");
 	}
 }
 
@@ -55,7 +62,7 @@ sub ToldVid {
 	my $title = $self->printTitle($event, $vid_id);
 
 	if ($title ne '') {
-		$self->say($event, "$event->{'from'}: [Title] - $title");
+		$self->say($event, "$event->{'from'}: $title");
 	}
 }
 
