@@ -14,22 +14,22 @@ use vars qw(@ISA);
 my %hosts;
 my %verhosts;
 
-for (0 .. 17) {
+for (0 .. 18, 20 .. 24, 30, 32 .. 33, 80 .. 81) {
 	$hosts{'cs'.$_} = 'http://trust.salesforce.com/rest/rss/cs'.$_;
 	$verhosts{'cs'.$_} = 'http://cs'.$_.'.salesforce.com/services/data';
 }
 
-for (0 .. 14)  {
+for (0 .. 23, 41)  {
 	$hosts{'na'.$_} = 'http://trust.salesforce.com/rest/rss/na'.$_;
 	$verhosts{'na'.$_} = 'http://na'.$_.'.salesforce.com/services/data';
 }
 
-for (0 .. 1) {
+for (0 .. 2) {
 	$hosts{'ap'.$_} = 'http://trust.salesforce.com/rest/rss/ap'.$_;
 	$verhosts{'ap'.$_} = 'http://ap'.$_.'.salesforce.com/services/data';
 }
 
-for (0 .. 2) {
+for (0 .. 3, 5) {
 	$hosts{'eu'.$_} = 'http://trust.salesforce.com/rest/rss/eu'.$_;
 	$verhosts{'eu'.$_} = 'http://eu'.$_.'.salesforce.com/services/data';
 }
