@@ -11,6 +11,9 @@ use vars qw(@ISA);
 @ISA = qw(BotModules);
 1;
 
+# https://developers.google.com/api-client-library/python/guide/aaa_apikeys
+my $APIKEY = 'API_KEY_GOES_HERE';
+
 my @blacklist = ();
 
 sub printTitle {
@@ -19,22 +22,29 @@ sub printTitle {
 
 	# Leaving the old URL here for reference
 	#my $url = 'http://gdata.youtube.com/feeds/api/videos?v=2&q='.$vid_id.'&max-results=1&fields=entry(title,yt:rating,yt:statistics)&prettyprint=true';
-	my $url = 'http://gdata.youtube.com/feeds/api/videos/'.$vid_id.'?v=2&fields=title,yt:rating,yt:statistics&prettyprint=true';
+	#my $url = 'http://gdata.youtube.com/feeds/api/videos/'.$vid_id.'?v=2&fields=title,yt:rating,yt:statistics&prettyprint=true';
+	my $url =  'https://www.googleapis.com/youtube/v3/videos?part=statistics%2Csnippet&id='.$vid_id.'&fields=items(snippet%2Cstatistics)&key='.$APIKEY;
+	warn $url;
 
-	my $xml = get($url);
-	my $rp = new XML::Simple;
-	my $data = $rp->XMLin($xml);
-	my $title = $data->{'title'};
+	my $json_decoder = new JSON;
+	my $json = $json_decoder->decode(get($url));
+
+	if (scalar $json->{'items'} eq 0) {
+		return '';
+	}
+
+	my $item = $json->{'items'}[0];
+	my $title = $item->{'snippet'}->{'title'};
 
 	if ($title eq '') {
 		return '';
 	}
 
-	my $views = $data->{'yt:statistics'}->{'viewCount'};
+	my $views = $item->{'statistics'}->{'viewCount'};
 	$views =~ s/(\d)(?=(\d{3})+(\D|$))/$1\,/g;
-	my $likes = $data->{'yt:rating'}->{'numLikes'};
+	my $likes = $item->{'statistics'}->{'likeCount'};
 	$likes =~ s/(\d)(?=(\d{3})+(\D|$))/$1\,/g;
-	my $dislikes = $data->{'yt:rating'}->{'numDislikes'};
+	my $dislikes = $item->{'statistics'}->{'dislikeCount'};
 	$dislikes =~ s/(\d)(?=(\d{3})+(\D|$))/$1\,/g;
 
 	return $title.' ['.$likes.' / '.$dislikes.' : '.$views.' views]';
