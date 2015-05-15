@@ -92,7 +92,7 @@ sub Heard {
 		$self->HeardVid($event, $url);
      } elsif (my ($url) = $message =~ m/.*(https?:\/\/m\.youtube\.com\/[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
 		$self->HeardVid($event, $url);
-     } elsif (my ($url) = $message =~ m/.*(http:\/\/youtu\.be\/[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
+     } elsif (my ($url) = $message =~ m/.*(https?:\/\/youtu\.be\/[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
 		my $link = URI->new($url);
 
 		my $uri = $link->path;
@@ -122,7 +122,7 @@ sub Told {
 		$self->ToldVid($event, $url);
      } elsif (my ($url) = $message =~ m/.*(https?:\/\/m\.youtube\.com\/[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
 		$self->ToldVid($event, $url);
-     } elsif (my ($url) = $message =~ m/.*(http:\/\/youtu\.be\/[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
+     } elsif (my ($url) = $message =~ m/.*(https?:\/\/youtu\.be\/[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
 		my $link = URI->new($url);
 
 		my $uri = $link->path;
