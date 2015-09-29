@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 
 package BotModules::YouTube;
-use Data::Dumper;
 use XML::Simple;
 use LWP::Simple;
 use URI qw();
@@ -24,7 +23,6 @@ sub printTitle {
 	#my $url = 'http://gdata.youtube.com/feeds/api/videos?v=2&q='.$vid_id.'&max-results=1&fields=entry(title,yt:rating,yt:statistics)&prettyprint=true';
 	#my $url = 'http://gdata.youtube.com/feeds/api/videos/'.$vid_id.'?v=2&fields=title,yt:rating,yt:statistics&prettyprint=true';
 	my $url =  'https://www.googleapis.com/youtube/v3/videos?part=statistics%2Csnippet&id='.$vid_id.'&fields=items(snippet%2Cstatistics)&key='.$APIKEY;
-	warn $url;
 
 	my $json_decoder = new JSON;
 	my $json = $json_decoder->decode(get($url));
@@ -50,6 +48,30 @@ sub printTitle {
 	return $title.' ['.$likes.' / '.$dislikes.' : '.$views.' views]';
 }
 
+sub getPlaylistInfo {
+	my $self = shift;
+	my ($event, $playlist_id) = @_;
+
+	my $url =  'https://www.googleapis.com/youtube/v3/playlists?part=snippet&id='.$playlist_id.'&key='.$APIKEY;
+
+	my $json_decoder = new JSON;
+	my $json = $json_decoder->decode(get($url));
+
+	if (scalar $json->{'items'} eq 0) {
+		return '';
+	}
+
+	my $item = $json->{'items'}[0];
+	my $title = $item->{'snippet'}->{'title'};
+	my $description = $item->{'snippet'}->{'title'};
+
+	if ($title eq '') {
+		return '';
+	}
+
+	return $title.' - '.$description;
+}
+
 sub HeardVid {
 	my $self = shift;
 	my ($event, $url) = @_;
@@ -57,6 +79,19 @@ sub HeardVid {
 	my $link = URI->new($url);
 	my $vid_id = $link->query_param('v');
 	my $title = $self->printTitle($event, $vid_id);
+
+	if ($title ne '') {
+		$self->say($event, "$title");
+	}
+}
+
+sub HeardVid {
+	my $self = shift;
+	my ($event, $url) = @_;
+
+	my $link = URI->new($url);
+	my $playlist_id = $link->query_param('list');
+	my $title = $self->getPlaylistInfo($event, $playlist_id);
 
 	if ($title ne '') {
 		$self->say($event, "$title");
@@ -76,6 +111,19 @@ sub ToldVid {
 	}
 }
 
+sub ToldPlaylist {
+	my $self = shift;
+	my ($event, $url) = @_;
+
+	my $link = URI->new($url);
+	my $playlist_id = $link->query_param('list');
+	my $title = $self->getPlaylistInfo($event, $playlist_id);
+
+	if ($title ne '') {
+		$self->say($event, "$event->{'from'}: $title");
+	}
+}
+
 sub Heard {
      my $self = shift;
      my ($event, $message) = @_;
@@ -86,7 +134,13 @@ sub Heard {
 		}
      }
 
-     if (my ($url) = $message =~ m/.*(http:\/\/www\.youtube\.com\/[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
+     if (my ($url) = $message =~ m/.*(https?:\/\/www\.youtube\.com\/playlist\?list=[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
+		$self->HeardPlaylist($event, $url);
+     } elsif (my ($url) = $message =~ m/.*(https?:\/\/m\.youtube\.com\/playlist\?list=[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
+		$self->HeardPlaylist($event, $url);
+     } elsif (my ($url) = $message =~ m/.*(https?:\/\/youtu\.be\/playlist\?list=[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
+		$self->HeardPlaylist($event, $url);
+     } elsif (my ($url) = $message =~ m/.*(http:\/\/www\.youtube\.com\/[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
 		$self->HeardVid($event, $url);
      } elsif (my ($url) = $message =~ m/.*(https:\/\/www\.youtube\.com\/[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
 		$self->HeardVid($event, $url);
@@ -116,7 +170,13 @@ sub Told {
 		}
      }
 
-     if (my ($url) = $message =~ m/.*(http:\/\/www\.youtube\.com\/[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
+     if (my ($url) = $message =~ m/.*(https?:\/\/www\.youtube\.com\/playlist\?list=[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
+		$self->ToldPlaylist($event, $url);
+     } elsif (my ($url) = $message =~ m/.*(https?:\/\/m\.youtube\.com\/playlist\?list=[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
+		$self->ToldPlaylist($event, $url);
+     } elsif (my ($url) = $message =~ m/.*(https?:\/\/youtu\.be\/playlist\?list=[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
+		$self->ToldPlaylist($event, $url);
+     } elsif (my ($url) = $message =~ m/.*(http:\/\/www\.youtube\.com\/[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
 		$self->ToldVid($event, $url);
      } elsif (my ($url) = $message =~ m/.*(https:\/\/www\.youtube\.com\/[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
 		$self->ToldVid($event, $url);
