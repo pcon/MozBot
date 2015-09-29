@@ -63,7 +63,7 @@ sub getPlaylistInfo {
 
 	my $item = $json->{'items'}[0];
 	my $title = $item->{'snippet'}->{'title'};
-	my $description = $item->{'snippet'}->{'title'};
+	my $description = $item->{'snippet'}->{'description'};
 
 	if ($title eq '') {
 		return '';
@@ -170,11 +170,11 @@ sub Told {
 		}
      }
 
-     if (my ($url) = $message =~ m/.*(https?:\/\/www\.youtube\.com\/playlist\?list=[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
+     if (my ($url) = $message =~ m/.*(https?:\/\/www\.youtube\.com\/playlist\?list=[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
 		$self->ToldPlaylist($event, $url);
-     } elsif (my ($url) = $message =~ m/.*(https?:\/\/m\.youtube\.com\/playlist\?list=[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
+     } elsif (my ($url) = $message =~ m/.*(https?:\/\/m\.youtube\.com\/playlist\?list=[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
 		$self->ToldPlaylist($event, $url);
-     } elsif (my ($url) = $message =~ m/.*(https?:\/\/youtu\.be\/playlist\?list=[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
+     } elsif (my ($url) = $message =~ m/.*(https?:\/\/youtu\.be\/playlist\?list=[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
 		$self->ToldPlaylist($event, $url);
      } elsif (my ($url) = $message =~ m/.*(http:\/\/www\.youtube\.com\/[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
 		$self->ToldVid($event, $url);
