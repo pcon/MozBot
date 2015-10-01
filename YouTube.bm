@@ -85,7 +85,7 @@ sub HeardVid {
 	}
 }
 
-sub HeardVid {
+sub HeardPlaylist {
 	my $self = shift;
 	my ($event, $url) = @_;
 
@@ -134,17 +134,11 @@ sub Heard {
 		}
      }
 
-     if (my ($url) = $message =~ m/.*(https?:\/\/www\.youtube\.com\/playlist\?list=[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
-		$self->HeardPlaylist($event, $url);
-     } elsif (my ($url) = $message =~ m/.*(https?:\/\/m\.youtube\.com\/playlist\?list=[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
+     if (my ($url) = $message =~ m/.*(https?:\/\/w*m?\.?youtube\.com\/playlist\?list=[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
 		$self->HeardPlaylist($event, $url);
      } elsif (my ($url) = $message =~ m/.*(https?:\/\/youtu\.be\/playlist\?list=[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
 		$self->HeardPlaylist($event, $url);
-     } elsif (my ($url) = $message =~ m/.*(http:\/\/www\.youtube\.com\/[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
-		$self->HeardVid($event, $url);
-     } elsif (my ($url) = $message =~ m/.*(https:\/\/www\.youtube\.com\/[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
-		$self->HeardVid($event, $url);
-     } elsif (my ($url) = $message =~ m/.*(https?:\/\/m\.youtube\.com\/[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
+     } elsif (my ($url) = $message =~ m/.*(https?:\/\/w*m?\.?youtube\.com\/[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
 		$self->HeardVid($event, $url);
      } elsif (my ($url) = $message =~ m/.*(https?:\/\/youtu\.be\/[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
 		my $link = URI->new($url);
@@ -170,17 +164,11 @@ sub Told {
 		}
      }
 
-     if (my ($url) = $message =~ m/.*(https?:\/\/www\.youtube\.com\/playlist\?list=[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
+     if (my ($url) = $message =~ m/.*(https?:\/\/w*m?\.?youtube\.com\/playlist\?list=[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
 		$self->ToldPlaylist($event, $url);
-     } elsif (my ($url) = $message =~ m/.*(https?:\/\/m\.youtube\.com\/playlist\?list=[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
+     } elsif (my ($url) = $message =~ m/.*(https?:\/\/youtu\.be\/playlist\?list=[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
 		$self->ToldPlaylist($event, $url);
-     } elsif (my ($url) = $message =~ m/.*(https?:\/\/youtu\.be\/playlist\?list=[0-9a-zA-Z_?=&-]+)\s*.*$/osi) {
-		$self->ToldPlaylist($event, $url);
-     } elsif (my ($url) = $message =~ m/.*(http:\/\/www\.youtube\.com\/[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
-		$self->ToldVid($event, $url);
-     } elsif (my ($url) = $message =~ m/.*(https:\/\/www\.youtube\.com\/[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
-		$self->ToldVid($event, $url);
-     } elsif (my ($url) = $message =~ m/.*(https?:\/\/m\.youtube\.com\/[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
+     } elsif (my ($url) = $message =~ m/.*(https?:\/\/w*m?\.?youtube\.com\/[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
 		$self->ToldVid($event, $url);
      } elsif (my ($url) = $message =~ m/.*(https?:\/\/youtu\.be\/[0-9a-zA-Z_?=&]+)\s*.*$/osi) {
 		my $link = URI->new($url);
