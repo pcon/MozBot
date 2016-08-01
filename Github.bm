@@ -1,0 +1,42 @@
+#!/usr/bin/perl
+
+package BotModules::Github;
+use LWP::Simple;
+use JSON;
+use Data::Dumper;
+use vars qw(@ISA);
+@ISA = qw(BotModules);
+1;
+
+sub getData {
+	my ($url) = @_;
+
+	my $json_decoder = new JSON;
+
+	return $json_decoder->decode(get($url));
+}
+
+sub ToldIssue {
+	my $self = shift;
+	my ($event, $org, $repo, $issue) = @_;
+
+	my $url = "https://api.github.com/repos/$org/$repo/issues/$issue";
+	my $data = getData($url);
+
+	my $title = $data->{'title'};
+	my $state = $data->{'state'};
+
+	$self->say($event, "[$org/$repo#$issue] - $state - $title");
+}
+
+sub Told {
+	my $self = shift;
+	my ($event, $message) = @_;
+	if (my ($org, $repo, $issue) = $message =~ m/github issues? (\w+)\/(\w+) (\d+)$/osi) {
+		$self->ToldIssue($event, $org, $repo, $issue);
+	} else {
+		return $self->SUPER::Told(@_);
+	}
+
+	return 0;
+}
