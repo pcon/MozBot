@@ -1,0 +1,57 @@
+#!/usr/bin/perl
+
+package BotModules::Giphy;
+use LWP::Protocol::https;
+use LWP;
+use JSON qw(decode_json);
+use URI qw();
+use URI::QueryParam qw();
+use URI::Escape;
+use Data::Dumper;
+use vars qw(@ISA);
+@ISA = qw(BotModules);
+1;
+
+# API KEY GOES HERE
+my $api_key = 'APIKEYGOESHERE';
+
+sub SearchGif {
+	my $self = shift;
+	my ($event, $search_string) = @_;
+
+	my $url = 'http://api.giphy.com/v1/gifs/search?limit=1&q=' . uri_escape($search_string) . '&api_key=' . $api_key;
+
+	my $ua = LWP::UserAgent->new();
+	my $request = new HTTP::Request 'GET' => $url;
+	$request->header('Accept' => 'application/json');
+
+	my $response = $ua->request($request);
+	my $decoded_json = JSON::decode_json( $response->{'_content'} );
+     my $link = $decoded_json->{'data'}[0]{'images'}{'original'}{'url'};
+
+	$self->say($event, $link);
+}
+
+sub Heard {
+	my $self = shift;
+	my ($event, $message) = @_;
+	if (my ($search_string) = $message =~ m/\!?giphy (.*)$/osi) {
+		$self->SearchGif($event, $search_string);
+	} else {
+		return $self->SUPER::Heard(@_);
+	}
+
+	return 0;
+}
+
+sub Told {
+	my $self = shift;
+	my ($event, $message) = @_;
+	if (my ($search_string) = $message =~ m/\!?giphy (.*)$/osi) {
+		$self->SearchGif($event, $search_string);
+	} else {
+		return $self->SUPER::Told(@_);
+	}
+
+	return 0;
+}
