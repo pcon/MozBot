@@ -6,8 +6,11 @@ use JSON qw(decode_json);
 use Data::Dumper;
 use Date::Parse;
 use POSIX qw(strftime);
+use HTTP::Request;
+use LWP::UserAgent;
 use HTML::Entities qw(decode_entities);
 use MIME::Base64;
+use Text::Unidecode;
 use strict;
 
 package BotModules::Twitter;
@@ -21,6 +24,8 @@ my $TEMBOO_ACCT = 'TEMBOO_ACCT_NAME';
 my $TEMBOO_DOMAIN = '/'.$TEMBOO_ACCT.'/master';
 my $TEMBOO_TWITTER_URI = 'https://'.$TEMBOO_ACCT.'.temboolive.com/temboo-api/1.0/choreos/Library/Twitter/';
 my $TEMBOO_PRESET = 'TEMBOO_PRESET';
+
+my @blacklist = ('botname');
 
 sub Help {
 	my $self = shift;
@@ -75,6 +80,8 @@ sub sayTwitterById {
 		my $when = POSIX::strftime('%Y-%m-%d %H:%M:%S', localtime(Date::Parse::str2time($search_response->{'created_at'})));
 		$output = ''.$text.' [@'.$from.'] ('.$when.')'."\n";
 	}
+
+	$output =~ s/([^[:ascii:]]+)/Text::Unidecode::unidecode($1)/ge;
 
 	return $output;
 }
@@ -139,7 +146,7 @@ sub Told {
 		$self->say($event, sayTwitterByUser($data));
 	} elsif (my ($trigger, $type, $data) = $message =~ m/^\s*(twitter)\s*(id)\s*(\S*)\s*$/osi) {
 		$self->say($event, sayTwitterById($data));
-	} elsif (my ($user, $id) = $message =~ m/.*http(?:s)?:\/\/(?:www\.)?twitter\.com\/([0-9a-zA-Z_]+)\/status\/([0-9]+)\s*.*$/osi) {
+	} elsif (my ($user, $id) = $message =~ m/.*http(?:s)?:\/\/(?:www\.)?(?:mobile\.)?twitter\.com\/([0-9a-zA-Z_]+)\/status\/([0-9]+)\s*.*$/osi) {
 		$self->say($event, sayTwitterById($id));
 	} else {
           return $self->SUPER::Told(@_);
@@ -152,7 +159,17 @@ sub Heard {
 	my $self = shift;
 	my ($event, $message) = @_;
 
-	if (my ($user, $id) = $message =~ m/.*http(?:s)?:\/\/(?:www\.)?twitter\.com\/([0-9a-zA-Z_]+)\/status\/([0-9]+)\s*.*$/osi) {
-		$self->say($event, sayTwitterById($id));
+	for (my $i=0; $i<scalar(@blacklist); $i++) {
+		if (($event->{'from'} =~ m/$blacklist[$i]/) || ($event->{'user'} =~ m/$blacklist[$i]/)) {
+			return $self->SUPER::Heard(@_);
+		}
 	}
+
+	if (my ($user, $id) = $message =~ m/.*http(?:s)?:\/\/(?:www\.)?(?:mobile\.)?twitter\.com\/([0-9a-zA-Z_]+)\/status\/([0-9]+)\s*.*$/osi) {
+		$self->say($event, sayTwitterById($id));
+	} else {
+		return $self->SUPER::Heard(@_);
+	}
+
+	return 0;
 }
